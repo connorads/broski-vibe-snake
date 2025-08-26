@@ -45,8 +45,10 @@ export class SnakeGame extends Scene
         };
 
         // Food for each player
-        this.food1 = { x: 0, y: 0 }; // Green food for Player 1
-        this.food2 = { x: 0, y: 0 }; // Red food for Player 2
+        this.food1 = { x: 0, y: 0 }; // Food for Player 1
+        this.food2 = { x: 0, y: 0 }; // Food for Player 2
+        this.food1Color = 0xffffff; // Will be randomized
+        this.food2Color = 0xffffff; // Will be randomized
         this.spawnFood1();
         this.spawnFood2();
 
@@ -82,6 +84,36 @@ export class SnakeGame extends Scene
         });
     }
 
+    getRandomFoodColor()
+    {
+        // Define a pool of vibrant colors that aren't snake colors
+        const colorPool = [
+            0xf1c40f, // Yellow
+            0x9b59b6, // Purple
+            0x3498db, // Blue
+            0xe67e22, // Orange
+            0x1abc9c, // Turquoise
+            0xe91e63, // Pink
+            0x8bc34a, // Light Green (different from snake green)
+            0xff5722, // Deep Orange
+            0x607d8b, // Blue Gray
+            0xffc107, // Amber
+            0x795548, // Brown
+            0x009688, // Teal
+        ];
+        
+        // Filter out colors that are too similar to snake colors
+        const snake1Color = this.snake1.color;
+        const snake2Color = this.snake2.color;
+        
+        const availableColors = colorPool.filter(color => 
+            color !== snake1Color && color !== snake2Color
+        );
+        
+        // Return a random color from the available pool
+        return availableColors[Math.floor(Math.random() * availableColors.length)];
+    }
+
     spawnFood1()
     {
         let validPosition = false;
@@ -115,6 +147,9 @@ export class SnakeGame extends Scene
                 }
             }
         }
+        
+        // Assign a random color to the food
+        this.food1Color = this.getRandomFoodColor();
     }
 
     spawnFood2()
@@ -150,6 +185,9 @@ export class SnakeGame extends Scene
                 }
             }
         }
+        
+        // Assign a random color to the food
+        this.food2Color = this.getRandomFoodColor();
     }
 
     moveBoundary(direction)
@@ -381,8 +419,8 @@ export class SnakeGame extends Scene
         this.graphics.lineTo((this.boundaryX + 1) * this.GRID_SIZE, this.GAME_HEIGHT);
         this.graphics.strokePath();
 
-        // Draw Food1 (Green for Player 1)
-        this.graphics.fillStyle(0x27ae60);
+        // Draw Food1 (Random color for Player 1)
+        this.graphics.fillStyle(this.food1Color);
         this.graphics.fillRect(
             this.food1.x * this.GRID_SIZE,
             this.food1.y * this.GRID_SIZE,
@@ -390,8 +428,8 @@ export class SnakeGame extends Scene
             this.GRID_SIZE - 2
         );
 
-        // Draw Food2 (Red for Player 2)
-        this.graphics.fillStyle(0xe74c3c);
+        // Draw Food2 (Random color for Player 2)
+        this.graphics.fillStyle(this.food2Color);
         this.graphics.fillRect(
             this.food2.x * this.GRID_SIZE,
             this.food2.y * this.GRID_SIZE,
