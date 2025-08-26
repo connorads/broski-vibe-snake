@@ -33,10 +33,11 @@ Boot → Preloader → MainMenu → SnakeGame → GameOver → (loops back to Ma
 The `SnakeGame` scene manages:
 
 - **Grid-based movement system**: 20px grid with timer-driven updates (150ms intervals)
-- **Dual player state**: Each snake has `body`, `direction`, `nextDirection`, `color`, `score`
-- **Collision detection**: Walls, self-collision, inter-player collision, dynamic boundary collision
+- **Dual player state**: Each snake has `body`, `direction`, `nextDirection`, `color`, `score`, `baseSpeed`, `currentSpeed`
+- **Collision detection**: Walls, self-collision, inter-player collision, dynamic boundary collision (with power-up exceptions)
 - **Territory-based food system**: Each player has color-coded food that spawns in their territory
 - **Dynamic boundary system**: Vertical wall that moves based on scoring, shrinking loser's territory
+- **Power-up system**: Special foods with temporary effects that spawn every 8 seconds
 - **Score tracking**: Via Phaser's registry system for cross-scene data
 
 ### Player Controls Implementation
@@ -77,3 +78,38 @@ The game includes a competitive territory system:
 - **Territory spawning**: Foods spawn only in respective player territories
 - **Minimum space**: Ensures 5 columns minimum territory to keep game winnable
 - **Visual clarity**: Full-width boundary wall eliminates collision confusion
+
+## Power-Up System
+
+The game features a dynamic power-up system that adds strategic depth and excitement:
+
+### Power-Up Types
+
+- **⚡ Speed Boost** (Gold `0xffd700`): Increases snake movement speed (0.6x delay) for 5 seconds
+- **🛡️ Shield** (Blue `0x3498db`): Grants immunity to all collisions (walls, snakes, boundary) for 3 seconds
+- **❄️ Freeze** (Cyan `0x00ffff`): Slows down opponent's movement (1.8x delay) for 3 seconds
+- **👻 Ghost** (Purple `0x9b59b6`): Allows passing through walls and boundaries with wraparound for 5 seconds
+- **✨ Shrink** (Pink `0xff69b4`): Instantly removes 2 tail segments (minimum 3 segments maintained)
+
+### Power-Up Mechanics
+
+- **Spawn System**: Power-ups spawn every 8 seconds at random valid locations
+- **Lifetime**: Each power-up lasts 5 seconds on the field before disappearing
+- **Visual Feedback**: Power-ups flash faster as expiration approaches (2-second warning)
+- **Status Display**: Real-time countdown timers show active effects for each player
+- **Collision Priority**: Power-ups are consumed on contact, taking precedence over other interactions
+
+### Visual Effects
+
+- **Power-up Appearance**: Smaller squares with white borders and distinctive colors
+- **Snake Effects**: 
+  - Shield: Blue circular auras around snake segments
+  - Speed: Golden trail effects on body segments
+- **UI Elements**: Status text displays active power-ups with symbols and remaining time
+
+### Implementation Details
+
+- **Dynamic Speed**: Game timer adjusts based on fastest snake's current speed
+- **Effect Stacking**: Multiple power-ups can be active simultaneously
+- **Territory Agnostic**: Power-ups spawn in both territories, encouraging cross-territory movement
+- **Balanced Design**: Durations and effects balanced for competitive gameplay

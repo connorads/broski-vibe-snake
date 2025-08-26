@@ -26,13 +26,31 @@ export class SnakeGame extends Scene
         this.MIN_BOUNDARY = 5; // Minimum boundary position (ensures minimum territory)
         this.MAX_BOUNDARY = this.COLS - 5; // Maximum boundary position
 
+        // Power-up system
+        this.powerUps = [];
+        this.POWER_UP_SPAWN_INTERVAL = 8000; // Spawn every 8 seconds
+        this.POWER_UP_LIFETIME = 5000; // Power-ups last 5 seconds on field
+        this.POWER_UP_TYPES = {
+            SPEED: { color: 0xffd700, name: 'speed', duration: 5000, symbol: '⚡' },
+            SHIELD: { color: 0x3498db, name: 'shield', duration: 3000, symbol: '🛡' },
+            FREEZE: { color: 0x00ffff, name: 'freeze', duration: 3000, symbol: '❄' },
+            GHOST: { color: 0x9b59b6, name: 'ghost', duration: 5000, symbol: '👻' },
+            SHRINK: { color: 0xff69b4, name: 'shrink', instant: true, symbol: '✨' }
+        };
+        this.activePowerUps = {
+            player1: [],
+            player2: []
+        };
+
         // Initialize Player 1 Snake (Green)
         this.snake1 = {
             body: [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }],
             direction: { x: 1, y: 0 },
             nextDirection: { x: 1, y: 0 },
             color: 0x27ae60,
-            score: 0
+            score: 0,
+            baseSpeed: 150,
+            currentSpeed: 150
         };
 
         // Initialize Player 2 Snake (Red)  
@@ -41,7 +59,9 @@ export class SnakeGame extends Scene
             direction: { x: 1, y: 0 },
             nextDirection: { x: 1, y: 0 },
             color: 0xe74c3c,
-            score: 0
+            score: 0,
+            baseSpeed: 150,
+            currentSpeed: 150
         };
 
         // Food for each player
@@ -66,19 +86,41 @@ export class SnakeGame extends Scene
         });
 
         // Instructions
-        this.add.text(16, this.GAME_HEIGHT - 80, 'Player 1 (Green): WASD  Player 2 (Red): Arrow Keys', {
+        this.add.text(16, this.GAME_HEIGHT - 100, 'Player 1 (Green): WASD  Player 2 (Red): Arrow Keys', {
             fontSize: '16px',
             fill: '#bdc3c7'
         });
-        this.add.text(16, this.GAME_HEIGHT - 60, 'Eat your colored food to shrink opponent\'s territory!', {
+        this.add.text(16, this.GAME_HEIGHT - 80, 'Eat your colored food to shrink opponent\'s territory!', {
             fontSize: '16px',
             fill: '#f39c12'
+        });
+        this.add.text(16, this.GAME_HEIGHT - 60, 'Special power-ups: ⚡Speed 🛡Shield ❄Freeze 👻Ghost ✨Shrink', {
+            fontSize: '14px',
+            fill: '#e74c3c'
+        });
+
+        // Power-up status display
+        this.powerUpStatus1 = this.add.text(16, 50, '', {
+            fontSize: '14px',
+            fill: '#27ae60'
+        });
+        this.powerUpStatus2 = this.add.text(16, 70, '', {
+            fontSize: '14px',
+            fill: '#e74c3c'
         });
 
         // Game loop timer
         this.gameTimer = this.time.addEvent({
             delay: 150,
             callback: this.updateGame,
+            callbackScope: this,
+            loop: true
+        });
+
+        // Power-up spawn timer
+        this.powerUpSpawnTimer = this.time.addEvent({
+            delay: this.POWER_UP_SPAWN_INTERVAL,
+            callback: this.spawnPowerUp,
             callbackScope: this,
             loop: true
         });
@@ -112,6 +154,194 @@ export class SnakeGame extends Scene
         
         // Return a random color from the available pool
         return availableColors[Math.floor(Math.random() * availableColors.length)];
+    }
+
+    spawnPowerUp()
+    {
+        if (this.gameOver) return;
+        
+        // Random power-up type
+        const powerUpTypes = Object.keys(this.POWER_UP_TYPES);
+        const randomType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+        const powerUpData = this.POWER_UP_TYPES[randomType];
+        
+        // Find valid position
+        let validPosition = false;
+        let x, y;
+        
+        while (!validPosition) {
+            x = Phaser.Math.Between(1, this.COLS - 2);
+            y = Phaser.Math.Between(1, this.ROWS - 2);
+            
+            // Don't spawn on boundary
+            if (x === this.boundaryX) continue;
+            
+            validPosition = true;
+            
+            // Check snakes
+            for (let segment of this.snake1.body) {
+                if (segment.x === x && segment.y === y) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            if (validPosition) {
+                for (let segment of this.snake2.body) {
+                    if (segment.x === x && segment.y === y) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
+            // Check foods
+            if (validPosition) {
+                if ((this.food1.x === x && this.food1.y === y) || 
+                    (this.food2.x === x && this.food2.y === y)) {
+                    validPosition = false;
+                }
+            }
+            
+            // Check other power-ups
+            if (validPosition) {
+                for (let powerUp of this.powerUps) {
+                    if (powerUp.x === x && powerUp.y === y) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Create power-up
+        const powerUp = {
+            x: x,
+            y: y,
+            type: randomType,
+            color: powerUpData.color,
+            spawnTime: this.time.now
+        };
+        
+        this.powerUps.push(powerUp);
+    }
+
+    updatePowerUps()
+    {
+        // Remove expired power-ups
+        const currentTime = this.time.now;
+        this.powerUps = this.powerUps.filter(powerUp => {
+            return (currentTime - powerUp.spawnTime) < this.POWER_UP_LIFETIME;
+        });
+        
+        // Update active power-up effects
+        this.updateActivePowerUps();
+    }
+
+    updateActivePowerUps()
+    {
+        const currentTime = this.time.now;
+        
+        // Update player 1 power-ups
+        this.activePowerUps.player1 = this.activePowerUps.player1.filter(powerUp => {
+            return (currentTime - powerUp.startTime) < powerUp.duration;
+        });
+        
+        // Update player 2 power-ups
+        this.activePowerUps.player2 = this.activePowerUps.player2.filter(powerUp => {
+            return (currentTime - powerUp.startTime) < powerUp.duration;
+        });
+        
+        // Update snake speeds
+        this.updateSnakeSpeed(this.snake1, this.activePowerUps.player1);
+        this.updateSnakeSpeed(this.snake2, this.activePowerUps.player2);
+        
+        // Update power-up status display
+        this.updatePowerUpDisplay();
+    }
+
+    updateSnakeSpeed(snake, activePowerUps)
+    {
+        let speedMultiplier = 1;
+        let hasFreezeEffect = false;
+        
+        // Check for speed effects on this snake
+        for (let powerUp of activePowerUps) {
+            if (powerUp.type === 'SPEED') {
+                speedMultiplier = 0.6; // Faster (lower delay)
+            }
+        }
+        
+        // Check if this snake is frozen by opponent
+        const otherPlayerPowerUps = snake === this.snake1 ? this.activePowerUps.player2 : this.activePowerUps.player1;
+        for (let powerUp of otherPlayerPowerUps) {
+            if (powerUp.type === 'FREEZE') {
+                speedMultiplier = 1.8; // Slower (higher delay)
+                hasFreezeEffect = true;
+            }
+        }
+        
+        snake.currentSpeed = Math.floor(snake.baseSpeed * speedMultiplier);
+        
+        // Update game timer if speeds changed
+        if (this.gameTimer) {
+            this.gameTimer.remove();
+            this.gameTimer = this.time.addEvent({
+                delay: Math.min(this.snake1.currentSpeed, this.snake2.currentSpeed),
+                callback: this.updateGame,
+                callbackScope: this,
+                loop: true
+            });
+        }
+    }
+
+    updatePowerUpDisplay()
+    {
+        // Player 1 status
+        let status1 = 'P1: ';
+        for (let powerUp of this.activePowerUps.player1) {
+            const remainingTime = Math.ceil((powerUp.duration - (this.time.now - powerUp.startTime)) / 1000);
+            const symbol = this.POWER_UP_TYPES[powerUp.type].symbol;
+            status1 += `${symbol}${remainingTime}s `;
+        }
+        this.powerUpStatus1.setText(status1);
+        
+        // Player 2 status
+        let status2 = 'P2: ';
+        for (let powerUp of this.activePowerUps.player2) {
+            const remainingTime = Math.ceil((powerUp.duration - (this.time.now - powerUp.startTime)) / 1000);
+            const symbol = this.POWER_UP_TYPES[powerUp.type].symbol;
+            status2 += `${symbol}${remainingTime}s `;
+        }
+        this.powerUpStatus2.setText(status2);
+    }
+
+    applyPowerUp(snake, powerUpType)
+    {
+        const player = snake === this.snake1 ? 'player1' : 'player2';
+        const powerUpData = this.POWER_UP_TYPES[powerUpType];
+        
+        if (powerUpData.instant) {
+            // Handle instant effects
+            if (powerUpType === 'SHRINK') {
+                if (snake.body.length > 3) {
+                    snake.body.splice(-2, 2); // Remove 2 segments from tail
+                }
+            }
+        } else {
+            // Handle duration effects
+            this.activePowerUps[player].push({
+                type: powerUpType,
+                startTime: this.time.now,
+                duration: powerUpData.duration
+            });
+        }
+    }
+
+    hasActivePowerUp(snake, powerUpType)
+    {
+        const player = snake === this.snake1 ? 'player1' : 'player2';
+        return this.activePowerUps[player].some(powerUp => powerUp.type === powerUpType);
     }
 
     spawnFood1()
@@ -253,33 +483,59 @@ export class SnakeGame extends Scene
             y: head.y + snake.direction.y
         };
 
-        // Check wall collision
-        if (newHead.x < 0 || newHead.x >= this.COLS || newHead.y < 0 || newHead.y >= this.ROWS) {
+        // Check if snake has ghost power-up (can pass through walls/boundary)
+        const hasGhost = this.hasActivePowerUp(snake, 'GHOST');
+        
+        // Check wall collision (unless ghost)
+        if (!hasGhost && (newHead.x < 0 || newHead.x >= this.COLS || newHead.y < 0 || newHead.y >= this.ROWS)) {
             return false; // Collision with wall
         }
 
-        // Check boundary collision
-        if (newHead.x === this.boundaryX) {
+        // Wrap around if ghost and hitting walls
+        if (hasGhost) {
+            if (newHead.x < 0) newHead.x = this.COLS - 1;
+            if (newHead.x >= this.COLS) newHead.x = 0;
+            if (newHead.y < 0) newHead.y = this.ROWS - 1;
+            if (newHead.y >= this.ROWS) newHead.y = 0;
+        }
+
+        // Check boundary collision (unless ghost)
+        if (!hasGhost && newHead.x === this.boundaryX) {
             return false; // Collision with boundary
         }
 
-        // Check self collision
-        for (let segment of snake.body) {
-            if (newHead.x === segment.x && newHead.y === segment.y) {
-                return false; // Self collision
+        // Check self collision (unless has shield)
+        const hasShield = this.hasActivePowerUp(snake, 'SHIELD');
+        if (!hasShield) {
+            for (let segment of snake.body) {
+                if (newHead.x === segment.x && newHead.y === segment.y) {
+                    return false; // Self collision
+                }
             }
         }
 
-        // Check collision with other snake
+        // Check collision with other snake (unless has shield)
         const otherSnake = snake === this.snake1 ? this.snake2 : this.snake1;
-        for (let segment of otherSnake.body) {
-            if (newHead.x === segment.x && newHead.y === segment.y) {
-                return false; // Collision with other snake
+        if (!hasShield) {
+            for (let segment of otherSnake.body) {
+                if (newHead.x === segment.x && newHead.y === segment.y) {
+                    return false; // Collision with other snake
+                }
             }
         }
 
         // Add new head
         snake.body.unshift(newHead);
+
+        // Check power-up collision
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+            const powerUp = this.powerUps[i];
+            if (newHead.x === powerUp.x && newHead.y === powerUp.y) {
+                this.applyPowerUp(snake, powerUp.type);
+                this.powerUps.splice(i, 1); // Remove consumed power-up
+                break;
+            }
+        }
 
         // Check food collision (each snake can only eat their own food)
         let foodEaten = false;
@@ -337,6 +593,7 @@ export class SnakeGame extends Scene
     {
         this.gameOver = true;
         this.gameTimer.remove();
+        this.powerUpSpawnTimer.remove();
         
         // Store final scores
         this.registry.set('player1Score', this.snake1.score);
@@ -360,6 +617,7 @@ export class SnakeGame extends Scene
     {
         if (this.gameOver) return;
 
+        this.updatePowerUps(); // Update power-up system
         this.checkGameOver();
         this.updateScore();
         this.render();
@@ -436,5 +694,100 @@ export class SnakeGame extends Scene
             this.GRID_SIZE - 2,
             this.GRID_SIZE - 2
         );
+
+        // Draw Power-ups with flashing effect
+        const currentTime = this.time.now;
+        for (let powerUp of this.powerUps) {
+            const timeLeft = this.POWER_UP_LIFETIME - (currentTime - powerUp.spawnTime);
+            
+            // Flash faster as expiration approaches
+            let shouldDraw = true;
+            if (timeLeft < 2000) { // Start flashing in last 2 seconds
+                const flashSpeed = timeLeft < 1000 ? 200 : 400; // Flash faster in last second
+                shouldDraw = Math.floor(currentTime / flashSpeed) % 2 === 0;
+            }
+            
+            if (shouldDraw) {
+                this.graphics.fillStyle(powerUp.color);
+                this.graphics.fillRect(
+                    powerUp.x * this.GRID_SIZE + 2,
+                    powerUp.y * this.GRID_SIZE + 2,
+                    this.GRID_SIZE - 4,
+                    this.GRID_SIZE - 4
+                );
+                
+                // Draw border for power-ups
+                this.graphics.lineStyle(2, 0xffffff);
+                this.graphics.strokeRect(
+                    powerUp.x * this.GRID_SIZE + 2,
+                    powerUp.y * this.GRID_SIZE + 2,
+                    this.GRID_SIZE - 4,
+                    this.GRID_SIZE - 4
+                );
+            }
+        }
+
+        // Visual effects for snakes with active power-ups
+        this.renderSnakeEffects();
+    }
+
+    renderSnakeEffects()
+    {
+        
+        // Player 1 effects
+        for (let powerUp of this.activePowerUps.player1) {
+            if (powerUp.type === 'SHIELD') {
+                // Draw shield effect around snake
+                this.graphics.lineStyle(3, 0x3498db, 0.7);
+                for (let segment of this.snake1.body) {
+                    this.graphics.strokeCircle(
+                        segment.x * this.GRID_SIZE + this.GRID_SIZE/2,
+                        segment.y * this.GRID_SIZE + this.GRID_SIZE/2,
+                        this.GRID_SIZE/2 + 2
+                    );
+                }
+            }
+            if (powerUp.type === 'SPEED') {
+                // Draw speed trails
+                this.graphics.lineStyle(2, 0xffd700, 0.5);
+                for (let i = 1; i < this.snake1.body.length; i++) {
+                    const segment = this.snake1.body[i];
+                    this.graphics.strokeRect(
+                        segment.x * this.GRID_SIZE - 1,
+                        segment.y * this.GRID_SIZE - 1,
+                        this.GRID_SIZE,
+                        this.GRID_SIZE
+                    );
+                }
+            }
+        }
+        
+        // Player 2 effects
+        for (let powerUp of this.activePowerUps.player2) {
+            if (powerUp.type === 'SHIELD') {
+                // Draw shield effect around snake
+                this.graphics.lineStyle(3, 0x3498db, 0.7);
+                for (let segment of this.snake2.body) {
+                    this.graphics.strokeCircle(
+                        segment.x * this.GRID_SIZE + this.GRID_SIZE/2,
+                        segment.y * this.GRID_SIZE + this.GRID_SIZE/2,
+                        this.GRID_SIZE/2 + 2
+                    );
+                }
+            }
+            if (powerUp.type === 'SPEED') {
+                // Draw speed trails
+                this.graphics.lineStyle(2, 0xffd700, 0.5);
+                for (let i = 1; i < this.snake2.body.length; i++) {
+                    const segment = this.snake2.body[i];
+                    this.graphics.strokeRect(
+                        segment.x * this.GRID_SIZE - 1,
+                        segment.y * this.GRID_SIZE - 1,
+                        this.GRID_SIZE,
+                        this.GRID_SIZE
+                    );
+                }
+            }
+        }
     }
 }
