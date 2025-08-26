@@ -9,37 +9,33 @@ export class MainMenu extends Scene
 
     create ()
     {
-        //  Get the current highscore from the registry
-        const score = this.registry.get('highscore');
+        const textStyle = { fontFamily: 'Arial Black', fontSize: 32, color: '#ffffff', stroke: '#000000', strokeThickness: 4 };
+        const titleStyle = { fontFamily: 'Arial Black', fontSize: 48, color: '#2ecc71', stroke: '#000000', strokeThickness: 6 };
 
-        const textStyle = { fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff', stroke: '#000000', strokeThickness: 8 };
+        this.add.image(400, 300, 'background');
 
-        this.add.image(512, 384, 'background');
-
-        const logo = this.add.image(512, -270, 'logo');
-
-        this.tweens.add({
-            targets: logo,
-            y: 270,
-            duration: 1000,
-            ease: 'Bounce'
-        });
-
-        this.add.text(32, 32, `High Score: ${score}`, textStyle);
+        // Title
+        this.add.text(400, 150, 'MULTIPLAYER SNAKE', titleStyle).setOrigin(0.5);
 
         const instructions = [
-            'How many coins can you',
-            'click in 10 seconds?',
+            'Player 1: Use WASD keys',
+            'Player 2: Use Arrow keys',
+            '',
+            'Eat food to grow your snake!',
+            'Avoid walls and other snake!',
             '',
             'Click to Start!'
         ]
 
-        this.add.text(512, 550, instructions, textStyle).setAlign('center').setOrigin(0.5);
+        this.add.text(400, 350, instructions, {
+            fontFamily: 'Arial',
+            fontSize: '24px',
+            color: '#ecf0f1',
+            align: 'center'
+        }).setOrigin(0.5);
 
         this.input.once('pointerdown', () => {
-
-            this.scene.start('ClickerGame');
-
+            this.scene.start('SnakeGame');
         });
     }
 }
