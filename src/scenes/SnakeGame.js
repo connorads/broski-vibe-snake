@@ -20,6 +20,12 @@ export class SnakeGame extends Scene
         this.gameOver = false;
         this.winner = null;
 
+        // Boundary system
+        this.boundaryX = Math.floor(this.COLS / 2); // Start at center (column 20)
+        this.BOUNDARY_SHIFT_AMOUNT = 1; // Grid cells to move per food eaten
+        this.MIN_BOUNDARY = 5; // Minimum boundary position (ensures minimum territory)
+        this.MAX_BOUNDARY = this.COLS - 5; // Maximum boundary position
+
         // Initialize Player 1 Snake (Green)
         this.snake1 = {
             body: [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }],
@@ -31,16 +37,18 @@ export class SnakeGame extends Scene
 
         // Initialize Player 2 Snake (Red)  
         this.snake2 = {
-            body: [{ x: 35, y: 25 }, { x: 36, y: 25 }, { x: 37, y: 25 }],
-            direction: { x: -1, y: 0 },
-            nextDirection: { x: -1, y: 0 },
+            body: [{ x: 30, y: 15 }, { x: 29, y: 15 }, { x: 28, y: 15 }],
+            direction: { x: 1, y: 0 },
+            nextDirection: { x: 1, y: 0 },
             color: 0xe74c3c,
             score: 0
         };
 
-        // Food
-        this.food = { x: 0, y: 0 };
-        this.spawnFood();
+        // Food for each player
+        this.food1 = { x: 0, y: 0 }; // Green food for Player 1
+        this.food2 = { x: 0, y: 0 }; // Red food for Player 2
+        this.spawnFood1();
+        this.spawnFood2();
 
         // Graphics for drawing
         this.graphics = this.add.graphics();
@@ -56,9 +64,13 @@ export class SnakeGame extends Scene
         });
 
         // Instructions
-        this.add.text(16, this.GAME_HEIGHT - 60, 'Player 1: WASD  Player 2: Arrow Keys', {
-            fontSize: '18px',
+        this.add.text(16, this.GAME_HEIGHT - 80, 'Player 1 (Green): WASD  Player 2 (Red): Arrow Keys', {
+            fontSize: '16px',
             fill: '#bdc3c7'
+        });
+        this.add.text(16, this.GAME_HEIGHT - 60, 'Eat your colored food to shrink opponent\'s territory!', {
+            fontSize: '16px',
+            fill: '#f39c12'
         });
 
         // Game loop timer
@@ -70,18 +82,19 @@ export class SnakeGame extends Scene
         });
     }
 
-    spawnFood()
+    spawnFood1()
     {
         let validPosition = false;
         while (!validPosition) {
-            this.food.x = Phaser.Math.Between(0, this.COLS - 1);
-            this.food.y = Phaser.Math.Between(0, this.ROWS - 1);
+            // Spawn in Player 1's territory (left of boundary)
+            this.food1.x = Phaser.Math.Between(0, this.boundaryX - 1);
+            this.food1.y = Phaser.Math.Between(0, this.ROWS - 1);
             
-            // Make sure food doesn't spawn on snakes
+            // Make sure food doesn't spawn on snakes or other food
             validPosition = true;
             
             for (let segment of this.snake1.body) {
-                if (segment.x === this.food.x && segment.y === this.food.y) {
+                if (segment.x === this.food1.x && segment.y === this.food1.y) {
                     validPosition = false;
                     break;
                 }
@@ -89,11 +102,78 @@ export class SnakeGame extends Scene
             
             if (validPosition) {
                 for (let segment of this.snake2.body) {
-                    if (segment.x === this.food.x && segment.y === this.food.y) {
+                    if (segment.x === this.food1.x && segment.y === this.food1.y) {
                         validPosition = false;
                         break;
                     }
                 }
+            }
+            
+            if (validPosition) {
+                if (this.food1.x === this.food2.x && this.food1.y === this.food2.y) {
+                    validPosition = false;
+                }
+            }
+        }
+    }
+
+    spawnFood2()
+    {
+        let validPosition = false;
+        while (!validPosition) {
+            // Spawn in Player 2's territory (right of boundary)
+            this.food2.x = Phaser.Math.Between(this.boundaryX + 1, this.COLS - 1);
+            this.food2.y = Phaser.Math.Between(0, this.ROWS - 1);
+            
+            // Make sure food doesn't spawn on snakes or other food
+            validPosition = true;
+            
+            for (let segment of this.snake1.body) {
+                if (segment.x === this.food2.x && segment.y === this.food2.y) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            if (validPosition) {
+                for (let segment of this.snake2.body) {
+                    if (segment.x === this.food2.x && segment.y === this.food2.y) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (validPosition) {
+                if (this.food2.x === this.food1.x && this.food2.y === this.food1.y) {
+                    validPosition = false;
+                }
+            }
+        }
+    }
+
+    moveBoundary(direction)
+    {
+        const oldBoundaryX = this.boundaryX;
+        
+        if (direction === 'left') {
+            // Player 1 scored, move boundary right (giving Player 1 more space)
+            this.boundaryX = Math.min(this.MAX_BOUNDARY, this.boundaryX + this.BOUNDARY_SHIFT_AMOUNT);
+        } else if (direction === 'right') {
+            // Player 2 scored, move boundary left (giving Player 2 more space)
+            this.boundaryX = Math.max(this.MIN_BOUNDARY, this.boundaryX - this.BOUNDARY_SHIFT_AMOUNT);
+        }
+
+        // If boundary moved, check if foods need to be respawned
+        if (this.boundaryX !== oldBoundaryX) {
+            // Check if food1 is now outside Player 1's territory
+            if (this.food1.x >= this.boundaryX) {
+                this.spawnFood1();
+            }
+            
+            // Check if food2 is now outside Player 2's territory
+            if (this.food2.x <= this.boundaryX) {
+                this.spawnFood2();
             }
         }
     }
@@ -140,6 +220,11 @@ export class SnakeGame extends Scene
             return false; // Collision with wall
         }
 
+        // Check boundary collision
+        if (newHead.x === this.boundaryX) {
+            return false; // Collision with boundary
+        }
+
         // Check self collision
         for (let segment of snake.body) {
             if (newHead.x === segment.x && newHead.y === segment.y) {
@@ -158,11 +243,23 @@ export class SnakeGame extends Scene
         // Add new head
         snake.body.unshift(newHead);
 
-        // Check food collision
-        if (newHead.x === this.food.x && newHead.y === this.food.y) {
+        // Check food collision (each snake can only eat their own food)
+        let foodEaten = false;
+        if (snake === this.snake1 && newHead.x === this.food1.x && newHead.y === this.food1.y) {
+            // Player 1 ate their food
             snake.score++;
-            this.spawnFood();
-        } else {
+            this.moveBoundary('left'); // Move boundary right, giving Player 1 more space
+            this.spawnFood1();
+            foodEaten = true;
+        } else if (snake === this.snake2 && newHead.x === this.food2.x && newHead.y === this.food2.y) {
+            // Player 2 ate their food
+            snake.score++;
+            this.moveBoundary('right'); // Move boundary left, giving Player 2 more space
+            this.spawnFood2();
+            foodEaten = true;
+        }
+
+        if (!foodEaten) {
             // Remove tail if no food eaten
             snake.body.pop();
         }
@@ -255,11 +352,43 @@ export class SnakeGame extends Scene
             );
         }
 
-        // Draw Food (Yellow)
-        this.graphics.fillStyle(0xf1c40f);
+        // Draw Boundary Wall (Full Column)
+        // Fill the entire boundary column
+        this.graphics.fillStyle(0x95a5a6); // Light gray wall
         this.graphics.fillRect(
-            this.food.x * this.GRID_SIZE,
-            this.food.y * this.GRID_SIZE,
+            this.boundaryX * this.GRID_SIZE,
+            0,
+            this.GRID_SIZE,
+            this.GAME_HEIGHT
+        );
+        
+        // Draw left border (bright white)
+        this.graphics.lineStyle(2, 0xffffff);
+        this.graphics.beginPath();
+        this.graphics.moveTo(this.boundaryX * this.GRID_SIZE, 0);
+        this.graphics.lineTo(this.boundaryX * this.GRID_SIZE, this.GAME_HEIGHT);
+        this.graphics.strokePath();
+        
+        // Draw right border (bright white)
+        this.graphics.beginPath();
+        this.graphics.moveTo((this.boundaryX + 1) * this.GRID_SIZE, 0);
+        this.graphics.lineTo((this.boundaryX + 1) * this.GRID_SIZE, this.GAME_HEIGHT);
+        this.graphics.strokePath();
+
+        // Draw Food1 (Green for Player 1)
+        this.graphics.fillStyle(0x27ae60);
+        this.graphics.fillRect(
+            this.food1.x * this.GRID_SIZE,
+            this.food1.y * this.GRID_SIZE,
+            this.GRID_SIZE - 2,
+            this.GRID_SIZE - 2
+        );
+
+        // Draw Food2 (Red for Player 2)
+        this.graphics.fillStyle(0xe74c3c);
+        this.graphics.fillRect(
+            this.food2.x * this.GRID_SIZE,
+            this.food2.y * this.GRID_SIZE,
             this.GRID_SIZE - 2,
             this.GRID_SIZE - 2
         );
