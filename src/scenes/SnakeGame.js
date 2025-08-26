@@ -311,11 +311,17 @@ export class SnakeGame extends Scene
         });
     }
 
+    update()
+    {
+        if (this.gameOver) return;
+        
+        this.handleInput();
+    }
+
     updateGame()
     {
         if (this.gameOver) return;
 
-        this.handleInput();
         this.checkGameOver();
         this.updateScore();
         this.render();
