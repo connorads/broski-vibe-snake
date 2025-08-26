@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a multiplayer snake game built with Phaser 3 and Vite. Two players control separate snakes using different keyboard controls (WASD vs Arrow keys) in a classic Nokia-style snake game.
+This is a multiplayer snake game built with Phaser 3 and Vite. Two players control separate snakes using different keyboard controls (WASD vs Arrow keys) in a competitive territory-based snake game with a dynamic boundary system.
 
 ## Development Commands
 
@@ -34,14 +34,15 @@ The `SnakeGame` scene manages:
 
 - **Grid-based movement system**: 20px grid with timer-driven updates (150ms intervals)
 - **Dual player state**: Each snake has `body`, `direction`, `nextDirection`, `color`, `score`
-- **Collision detection**: Walls, self-collision, inter-player collision
-- **Food system**: Random spawn with collision avoidance
+- **Collision detection**: Walls, self-collision, inter-player collision, dynamic boundary collision
+- **Territory-based food system**: Each player has color-coded food that spawns in their territory
+- **Dynamic boundary system**: Vertical wall that moves based on scoring, shrinking loser's territory
 - **Score tracking**: Via Phaser's registry system for cross-scene data
 
 ### Player Controls Implementation
 
-- **Player 1**: WASD keys (green snake, starts at grid 5,5)
-- **Player 2**: Arrow keys (red snake, starts at grid 35,25)
+- **Player 1**: WASD keys (green snake, starts at grid 5,5) - eats green food
+- **Player 2**: Arrow keys (red snake, starts at grid 30,15) - eats red food  
 - **Input handling**: Uses `keyboard.addKeys()` and `createCursorKeys()` with direction validation to prevent immediate reversals
 
 ### Key Technical Details
@@ -49,14 +50,15 @@ The `SnakeGame` scene manages:
 - **Rendering**: Uses Phaser Graphics API for real-time drawing (no sprites)
 - **Movement**: Grid-based with `body` array manipulation (unshift new head, pop tail)
 - **Game loop**: Timer-based updates rather than frame-based for consistent speed
-- **Food spawning**: Validates against both snakes' body positions
-- **Win conditions**: First death, mutual death (score comparison), or collision scenarios
+- **Food spawning**: Two separate foods spawn in respective territories, validates against snakes' positions
+- **Boundary system**: Moves 1 grid cell per food eaten, with minimum territory limits (5-35 columns)
+- **Win conditions**: First death, mutual death (score comparison), or collision scenarios (walls, boundary, snakes)
 
 ## Asset Structure
 
 - `public/assets/` - Contains background image and logo
 - Original coin clicker assets remain but are unused
-- Game uses procedural graphics (rectangles) for snakes and food
+- Game uses procedural graphics (rectangles) for snakes, foods, and boundary wall
 
 ## Configuration
 
@@ -64,3 +66,14 @@ The `SnakeGame` scene manages:
 - **Physics**: Arcade physics with zero gravity
 - **Background color**: `#2c3e50` (dark blue-gray)
 - **Phaser scale mode**: FIT with center alignment
+
+## Dynamic Boundary Feature
+
+The game includes a competitive territory system:
+
+- **Boundary wall**: Gray column with white borders that moves based on scoring
+- **Territory control**: Eating food shrinks opponent's play area by 1 grid cell
+- **Color-coded food**: Green food for Player 1, red food for Player 2
+- **Territory spawning**: Foods spawn only in respective player territories
+- **Minimum space**: Ensures 5 columns minimum territory to keep game winnable
+- **Visual clarity**: Full-width boundary wall eliminates collision confusion
